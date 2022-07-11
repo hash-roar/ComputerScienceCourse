@@ -1,8 +1,10 @@
+#include "address.hh"
 #include "socket.hh"
 #include "util.hh"
 
 #include <cstdlib>
 #include <iostream>
+#include <ostream>
 
 using namespace std;
 
@@ -16,7 +18,20 @@ void get_URL(const string &host, const string &path) {
     // Then you'll need to print out everything the server sends back,
     // (not just one call to read() -- everything) until you reach
     // the "eof" (end of file).
+    
+    Address peer_addr(host,80);
+    TCPSocket tcp_socket;
+    tcp_socket.connect(peer_addr);
 
+    tcp_socket.write("GET "+path+"HTTP/1.1\r\n"+"Connection: close\r\n\r\n");
+    while (1) {
+      auto  message= tcp_socket.read();
+      if (message.empty()) {
+        break;
+      }else {
+        std::cout<<message<<std::endl;
+      }
+    }
     cerr << "Function called: get_URL(" << host << ", " << path << ").\n";
     cerr << "Warning: get_URL() has not been implemented yet.\n";
 }
