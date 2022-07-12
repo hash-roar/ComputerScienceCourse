@@ -62,14 +62,23 @@ string ByteStream::peek_output(const size_t len) const {
 }
 
 //! \param[in] len bytes will be removed from the output side of the buffer
-void ByteStream::pop_output(const size_t len) { DUMMY_CODE(len); }
+void ByteStream::pop_output(const size_t len) {
+  assert(len <= buffer_size());
+  auto pop_len = len;
+  while (pop_len) {
+    _head=(_head+1)%_capacity;
+    pop_len--;
+  }
+}
 
 //! Read (i.e., copy and then pop) the next "len" bytes of the stream
 //! \param[in] len bytes will be popped and returned
 //! \returns a string
 std::string ByteStream::read(const size_t len) {
-    DUMMY_CODE(len);
-    return {};
+  auto result = peek_output(len);
+
+  peek_output(len);
+  return result;
 }
 
 void ByteStream::end_input() { _input_end = true; }
