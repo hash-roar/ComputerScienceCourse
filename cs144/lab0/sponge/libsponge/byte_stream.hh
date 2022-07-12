@@ -1,7 +1,9 @@
 #ifndef SPONGE_LIBSPONGE_BYTE_STREAM_HH
 #define SPONGE_LIBSPONGE_BYTE_STREAM_HH
 
+#include <cstddef>
 #include <string>
+#include <vector>
 
 //! \brief An in-order byte stream.
 
@@ -15,7 +17,15 @@ class ByteStream {
     // Hint: This doesn't need to be a sophisticated data structure at
     // all, but if any of your tests are taking longer than a second,
     // that's a sign that you probably want to keep exploring
-    // different approaches.
+   // different approaches.
+    bool        _eof;
+    bool        _flag;
+    bool        _input_end;
+    std::size_t _total_written;
+    std::size_t _head;
+    std::size_t _tail;
+    std::size_t _capacity;
+    std::vector<char> _ringbuffer;  // for less padding?
 
     bool _error{};  //!< Flag indicating that the stream suffered an error.
 
