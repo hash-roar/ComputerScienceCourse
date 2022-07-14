@@ -21,16 +21,20 @@ fn main() {
         )
         .get_matches();
 
-    let mut db=kvs::KvStore::new();
+    let mut db = kvs::KvStore::new();
 
     if let Some(maches) = mathes.subcommand_matches("set") {
-        let key:String = maches.get_one::<String>("key").expect("expect key").to_owned();
-        let value:String = maches.get_one::<String>("value").expect("expect key").to_owned();
+        let key: String = maches
+            .get_one::<String>("key")
+            .expect("expect key")
+            .to_owned();
+        let value: String = maches
+            .get_one::<String>("value")
+            .expect("expect key")
+            .to_owned();
 
         db.set(key, value);
     }
-    if let Some(_) = mathes.subcommand_matches("get") {
-    }
-    if let Some(_) = mathes.subcommand_matches("rm") {
-    }
+    if let Some(_) = mathes.subcommand_matches("get") {}
+    if let Some(_) = mathes.subcommand_matches("rm") {}
 }
