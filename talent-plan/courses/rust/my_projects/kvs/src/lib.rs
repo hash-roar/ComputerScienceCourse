@@ -11,16 +11,16 @@ impl KvStore {
     }
 
     pub fn set(&mut self,key: String,val: String) {
-        unimplemented!()
+        self.data.insert(key, val);
     }
 
     pub fn get(& mut self, key: String) ->Option<String> {
-        unimplemented!()    
+        self.data.get(&key).map(|s|s.to_owned())
     }
 
     pub fn remove(& mut self,key:String)
     {
-        unimplemented!()
+        self.data.remove(&key);
     }
     
 }
