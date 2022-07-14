@@ -32,14 +32,16 @@ class StreamReassembler {
     //!< The reassembled in-order byte stream
     ByteStream _output;
 
-
-    int merge_nodes(string_node& node1,const string_node&node2);
+    int merge_nodes(string_node &node1, const string_node &node2);
 
   public:
     //! \brief Construct a `StreamReassembler` that will store up to `capacity` bytes.
     //! \note This capacity limits both the bytes that have been reassembled,
     //! and those that have not yet been reassembled.
     StreamReassembler(const size_t capacity);
+
+    size_t want_index() const { return _wanted_index; }
+    bool input_ended() const { return _output.input_ended(); }
 
     //! \brief Receive a substring and write any newly contiguous bytes into the stream.
     //!
