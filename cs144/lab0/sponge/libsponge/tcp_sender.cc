@@ -42,13 +42,15 @@ void TCPSender::send_segment(TCPSegment &seg) {
 
 uint64_t TCPSender::bytes_in_flight() const { return _bytes_flight; }
 
-void TCPSender::fill_window() {
+void TCPSender::fill_window(bool send_syn) {
     // has not sent syn yet
-    if (_has_syn) {
-        TCPSegment seg;
-        seg.header().syn = true;
-        send_segment(seg);
-        _has_syn = true;
+    if (!_has_syn) {
+        if (send_syn) {
+            TCPSegment seg;
+            seg.header().syn = true;
+            send_segment(seg);
+            _has_syn = true;
+        }
         return;
     }
 
