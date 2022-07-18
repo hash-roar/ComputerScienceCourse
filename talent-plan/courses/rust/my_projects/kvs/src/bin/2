@@ -23,25 +23,14 @@ fn main() {
 
     let mut db = kvs::KvStore::new();
 
-    match macthes.subcommand().expect("expect subcommand") {
-        ("set", matches) => {
-            let key: &String = matches.get_one("key").unwrap();
-            let value: &String = matches.get_one("value").unwrap();
+    match macthes.subcommand().expect("expect subcommand")
+    {
+        ("get",Match)=>{
 
-            db.set(key.to_owned(), value.to_owned());
+        },
+        _=>{
+            
         }
-        ("get", matches) => {
-            let key: &String = matches.get_one("key").unwrap();
 
-            match db.get(key.to_owned()) {
-                Some(value) => {
-                    println!("{}", value)
-                }
-                None => {
-                    println!("no value found")
-                }
-            }
-        }
-        _ => unreachable!(),
     }
 }

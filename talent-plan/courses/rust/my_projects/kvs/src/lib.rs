@@ -1,8 +1,16 @@
+mod error;
+
 use std::collections::HashMap;
 
 #[derive(Default)]
 pub struct KvStore {
     pub data: HashMap<String, String>,
+}
+
+enum KvsCommand {
+    Set { key: String, value: String },
+    Get { key: String },
+    Rm { key: String },
 }
 
 impl KvStore {
@@ -17,7 +25,7 @@ impl KvStore {
     }
 
     pub fn get(&mut self, key: String) -> Option<String> {
-        self.data.get(&key).map(|s| s.to_owned())
+        self.data.get(&key).map(|s| s.clone())
     }
 
     pub fn remove(&mut self, key: String) {
