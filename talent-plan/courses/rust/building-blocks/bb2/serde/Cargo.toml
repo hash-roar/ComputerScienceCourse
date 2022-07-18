@@ -9,3 +9,5 @@ authors = ["fucking gale"]
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+ron = "0.7"
+bson = "2.3.0"
