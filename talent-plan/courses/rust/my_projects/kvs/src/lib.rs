@@ -3,12 +3,14 @@ mod error;
 use error::{DbError, Result};
 
 use serde::{Deserialize, Serialize};
+use serde_json::Deserializer;
 use std::{
     collections::{BTreeMap, HashMap},
-    fs::{self, File},
-    io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write},
+    ffi::OsStr,
+    fs::{self, File, OpenOptions},
+    io::{self, BufReader, BufWriter, Read, Seek, SeekFrom, Write},
     ops::Range,
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 const COMPACT_WATERFLOW: u64 = 1024 * 1024;
@@ -20,24 +22,39 @@ pub struct KvStore {
     need_compact: u64,
     readers: HashMap<u64, LogReader<File>>,
     index: BTreeMap<String, CommandPos>,
-    pub data: HashMap<String, String>,
 }
 
 impl KvStore {
     pub fn open(path: impl Into<PathBuf>) -> Result<KvStore> {
         let path = path.into();
-        fs::create_dir_all(path)?;
+        fs::create_dir_all(&path)?;
 
         let mut readers = HashMap::new();
         let mut index = BTreeMap::new();
         // load files from specific directory and build index
-        //
-        
+        let gen_list = get_gen_list(&path)?;
+        let mut need_compact = 0;
+        for &gen in &gen_list {
+            let mut reader = LogReader::new(File::open(log_path(&path, gen))?)?;
+            need_compact += load_logfile(gen, &mut reader, &mut index)?;
+            readers.insert(gen, reader);
+        }
+        let cur_gen = gen_list.last().unwrap_or(&0) + 1;
+        let writer = new_logfile(&path, cur_gen, &mut readers)?;
+
+        Ok(KvStore {
+            path,
+            readers,
+            writer,
+            cur_gen,
+            index,
+            need_compact,
+        })
     }
     pub fn set(&mut self, key: String, val: String) -> Result<()> {
         let cmd = KvsCommand::set(key.clone(), val);
         let pos = self.writer.pos;
-        serde_json::to_writer(self.writer, &cmd)?;
+        serde_json::to_writer(& mut self.writer, &cmd)?;
         self.writer.flush()?;
 
         if let Some(old_cmd) = self
@@ -75,7 +92,7 @@ impl KvStore {
     pub fn remove(&mut self, key: String) -> Result<()> {
         if let Some(cmd_pos) = self.index.remove(&key) {
             let cmd = KvsCommand::remove(key.clone());
-            serde_json::to_writer(self.writer, &cmd);
+            serde_json::to_writer(&mut self.writer, &cmd);
             self.writer.flush()?;
 
             self.need_compact += cmd_pos.len;
@@ -86,8 +103,117 @@ impl KvStore {
     }
 
     fn compact(&mut self) -> Result<()> {
+        let compact_gen = self.cur_gen + 1;
+        self.cur_gen += 2;
+        self.writer = self.new_logfile(self.cur_gen)?;
+
+        let mut compact_writer = self.new_logfile(compact_gen)?;
+        let mut new_pos = 0;
+
+        for cmd_pos in &mut self.index.values_mut() {
+            let reader = self
+                .readers
+                .get_mut(&cmd_pos.gen)
+                .expect("get reader error");
+
+            if reader.pos != cmd_pos.pos {
+                reader.seek(SeekFrom::Start(cmd_pos.pos))?;
+            }
+
+            let mut entry_reader = reader.take(cmd_pos.len);
+
+            let len = io::copy(&mut entry_reader, &mut compact_writer)?;
+            *cmd_pos = (compact_gen, new_pos..new_pos + len).into();
+
+            new_pos += len;
+        }
+        compact_writer.flush();
+
+        let stale_file: Vec<_> = self
+            .readers
+            .keys()
+            .filter(|&&gen| gen < compact_gen)
+            .cloned()
+            .collect();
+
+        for stale_gen in stale_file {
+            self.readers.remove(&stale_gen);
+            fs::remove_file(log_path(&self.path, stale_gen))?;
+        }
+        self.need_compact = 0;
         Ok(())
     }
+    fn new_logfile(&mut self, gen: u64) -> Result<LogWriter<File>> {
+        new_logfile(&self.path, gen, &mut self.readers)
+    }
+}
+
+fn get_gen_list(path: &Path) -> Result<Vec<u64>> {
+    let mut gen_list: Vec<u64> = fs::read_dir(path)?
+        .flat_map(|res| -> Result<_> { Ok(res?.path()) })
+        .filter(|path| path.is_file() && path.extension() == Some("log".as_ref()))
+        .flat_map(|path| {
+            path.file_name()
+                .and_then(OsStr::to_str)
+                .map(|s| s.trim_end_matches(".log"))
+                .map(str::parse::<u64>)
+        })
+        .flatten()
+        .collect();
+
+    gen_list.sort_unstable();
+    Ok(gen_list)
+}
+
+fn load_logfile(
+    gen: u64,
+    reader: &mut LogReader<File>,
+    index: &mut BTreeMap<String, CommandPos>,
+) -> Result<u64> {
+    let mut pos = reader.seek(SeekFrom::Start(0))?;
+    let mut deserial_strem = Deserializer::from_reader(reader).into_iter::<KvsCommand>();
+    let mut need_compact = 0;
+    while let Some(cmd) = deserial_strem.next() {
+        let new_pos = deserial_strem.byte_offset() as u64;
+        match cmd? {
+            KvsCommand::Set { key, .. } => {
+                if let Some(old_cmd) = index.insert(key, (gen, pos..new_pos).into()) {
+                    need_compact += old_cmd.len;
+                }
+            }
+            KvsCommand::Remove { key } => {
+                if let Some(old_cmd) = index.remove(&key) {
+                    need_compact += old_cmd.len;
+                }
+                need_compact += new_pos - pos;
+            }
+        }
+
+        pos = new_pos;
+    }
+
+    Ok(need_compact)
+}
+
+fn new_logfile(
+    path: &Path,
+    gen: u64,
+    readers: &mut HashMap<u64, LogReader<File>>,
+) -> Result<LogWriter<File>> {
+    let path = log_path(&path, gen);
+    let writer = LogWriter::new(
+        OpenOptions::new()
+            .create(true)
+            .write(true)
+            .append(true)
+            .open(&path)?,
+    )?;
+    readers.insert(gen, LogReader::new(File::open(&path)?)?);
+    Ok(writer)
+}
+
+fn log_path(dir: &Path, gen: u64) -> PathBuf {
+    dir.join(format!("{}.log", gen))
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -161,7 +287,7 @@ struct LogReader<R: Read + Seek> {
 }
 
 impl<R: Read + Seek> LogReader<R> {
-    fn new(reader: R) -> Result<Self> {
+    fn new(mut reader: R) -> Result<Self> {
         let pos = reader.seek(SeekFrom::Current(0))?;
         Ok(LogReader {
             reader: BufReader::new(reader),
