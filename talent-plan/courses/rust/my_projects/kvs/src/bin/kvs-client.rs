@@ -69,6 +69,6 @@ fn main() -> Result<()> {
     env_logger::builder().filter_level(log::LevelFilter::Trace).init();
     debug!("args load: {:?}", arg);
     
-    
+
     Ok(())
 }
