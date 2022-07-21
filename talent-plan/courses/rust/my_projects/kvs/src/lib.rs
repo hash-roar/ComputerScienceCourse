@@ -1,6 +1,6 @@
 mod error;
 
-use error::{DbError, Result};
+pub use error::{DbError, Result};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Deserializer;
