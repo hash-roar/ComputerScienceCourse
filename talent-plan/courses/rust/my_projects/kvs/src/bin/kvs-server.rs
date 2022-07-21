@@ -1,10 +1,8 @@
 use std::{env::current_dir, fs, net::SocketAddr, process::exit};
 
 use kvs::Result;
-use log::{error, LevelFilter};
+use log::{debug, error, LevelFilter};
 use structopt::StructOpt;
-
-const DEFAULT_SERVER_ADDR: &str = "127.0.0.1:4000";
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "kvs-server")]
@@ -13,7 +11,7 @@ struct Args {
         long,
         help = "specify the address",
         value_name = "IP:PORT",
-        default_value = "DEFAULT_SERVER_ADDR",
+        default_value = "127.0.0.1:4000",
         parse(try_from_str)
     )]
     addr: SocketAddr,
@@ -40,6 +38,8 @@ fn main() -> Result<()> {
         .filter_level(LevelFilter::Trace)
         .init();
     let mut args = Args::from_args();
+
+    debug!("args: {:?}", args);
     let res = get_engine().and_then(move |engine| {
         if args.engine.is_none() {
             args.engine = Some(engine.clone());
@@ -59,7 +59,6 @@ fn main() -> Result<()> {
 }
 
 fn server_start() -> Result<()> {
-
     Ok(())
 }
 
