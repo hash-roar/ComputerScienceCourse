@@ -1,6 +1,5 @@
-use std::io;
-
 use failure::Fail;
+use std::{io, string::FromUtf8Error};
 
 #[derive(Debug, Fail)]
 pub enum DbError {
@@ -12,6 +11,12 @@ pub enum DbError {
     KeyNotFoundErr,
     #[fail(display = "unexpected command")]
     UnexpectCommandErr,
+    #[fail(display = "sled error {}", _0)]
+    SledErr(#[cause] sled::Error),
+    #[fail(display = "error happen convrt from u8 {}", _0)]
+    FromU8Err(#[cause] FromUtf8Error),
+    #[fail(display = "error: {}", _0)]
+    StrErr(String),
 }
 
 impl From<io::Error> for DbError {
@@ -22,6 +27,18 @@ impl From<io::Error> for DbError {
 impl From<serde_json::Error> for DbError {
     fn from(err: serde_json::Error) -> Self {
         DbError::SerdeErr(err)
+    }
+}
+
+impl From<sled::Error> for DbError {
+    fn from(err: sled::Error) -> Self {
+        DbError::SledErr(err)
+    }
+}
+
+impl From<FromUtf8Error> for DbError {
+    fn from(err: FromUtf8Error) -> Self {
+        DbError::FromU8Err(err)
     }
 }
 
